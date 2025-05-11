@@ -6,6 +6,6 @@ mkdir /home/user/getsentry
 cd /home/user/getsentry
 
 # Pull down sentry and self-hosted.
-git clone https://github.com/getsentry/sentry.git
-git clone https://github.com/getsentry/self-hosted.git
+git clone https://github.com/quzard/sentry.git -b feat/sls
+git clone https://github.com/quzard/self-hosted.git -b feat/sls
 cd self-hosted
