@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -eE
 
+docker compose down
+
+
 # Pre-pre-flight? 🤷
 if [[ -n "$MSYSTEM" ]]; then
   echo "Seems like you are using an MSYS2-based system (such as Git Bash) which is not supported. Please use WSL instead."
