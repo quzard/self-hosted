@@ -120,7 +120,7 @@ if [[ -z "${REPORT_SELF_HOSTED_ISSUES:-}" ]]; then
 
   yn=""
   until [ ! -z "$yn" ]; do
-    read -p "y or n? " yn
+    yn="no"
     case $yn in
     y | yes | 1)
       export REPORT_SELF_HOSTED_ISSUES=1
