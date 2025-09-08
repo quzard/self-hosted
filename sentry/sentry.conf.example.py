@@ -48,14 +48,10 @@ DATABASES = {
         "NAME": "postgres",
         "USER": "postgres",
         "PASSWORD": "",
-        "HOST": "postgres",
+        "HOST": "pgbouncer",
         "PORT": "",
     }
 }
-
-# You should not change this setting after your database has been created
-# unless you have altered all schemas first
-SENTRY_USE_BIG_INTS = True
 
 # If you're expecting any kind of real traffic on Sentry, we highly recommend
 # configuring the CACHES and Redis settings
@@ -68,9 +64,24 @@ SENTRY_USE_BIG_INTS = True
 # and thus various UI optimizations should be enabled.
 SENTRY_SINGLE_ORGANIZATION = True
 
+# Sentry event retention days specifies how long events are retained in the database.
+# This should be set on your `.env` or `.env.custom` file, instead of modifying
+# the value here.
+# NOTE: The longer the days, the more disk space is required.
 SENTRY_OPTIONS["system.event-retention-days"] = int(
     env("SENTRY_EVENT_RETENTION_DAYS", "90")
 )
+
+# The secret key is being used for various cryptographic operations, such as
+# generating a CSRF token, session token, and registering Relay instances.
+# The secret key value should be set on your `.env` or `.env.custom` file
+# instead of modifying the value here.
+#
+# If the key ever becomes compromised, it's important to generate a new key.
+# Changing this value will result in all current sessions being invalidated.
+# A new key can be generated with `$ sentry config generate-secret-key`
+if env("SENTRY_SYSTEM_SECRET_KEY"):
+    SENTRY_OPTIONS["system.secret-key"] = env("SENTRY_SYSTEM_SECRET_KEY", "")
 
 # Self-hosted Sentry infamously has a lot of Docker containers required to make
 # all the features work. Oftentimes, users don't use the full feature set that
@@ -200,15 +211,6 @@ SENTRY_TAGSTORE_OPTIONS = {}
 
 SENTRY_DIGESTS = "sentry.digests.backends.redis.RedisBackend"
 
-###################
-# Metrics Backend #
-###################
-
-SENTRY_RELEASE_HEALTH = "sentry.release_health.metrics.MetricsReleaseHealthBackend"
-SENTRY_RELEASE_MONITOR = (
-    "sentry.release_health.release_monitor.metrics.MetricReleaseMonitorBackend"
-)
-
 ##############
 # Web Server #
 ##############
@@ -228,6 +230,12 @@ SENTRY_WEB_OPTIONS = {
     "workers": 3,
     "threads": 4,
     "memory-report": False,
+    # The `harakiri` option terminates requests that take longer than the
+    # defined amount of time (in seconds) which can help avoid stuck workers
+    # caused by GIL issues or deadlocks.
+    # Ensure nginx `proxy_read_timeout` configuration (default: 30)
+    # on your `nginx.conf` file to be at least 5 seconds longer than this.
+    # "harakiri": 25,
     # Some stuff so uwsgi will cycle workers sensibly
     "max-requests": 100000,
     "max-requests-delta": 500,
@@ -271,36 +279,32 @@ SENTRY_OPTIONS["mail.from"] = f"sentry@{SENTRY_OPTIONS['mail.list-namespace']}"
 # Features #
 ############
 
+# Sentry uses feature flags to enable certain features. Some features may
+# require additional configuration or containers. To learn more about how
+# Sentry uses feature flags, see https://develop.sentry.dev/backend/application-domains/feature-flags/
+#
+# The features listed here are stable and generally available on SaaS.
+# To enable preview features, see https://develop.sentry.dev/self-hosted/configuration/#enabling-preview-features
+
 SENTRY_FEATURES["projects:sample-events"] = False
 SENTRY_FEATURES.update(
     {
         feature: True
         for feature in (
             "organizations:discover",
-            "organizations:events",
             "organizations:global-views",
             "organizations:incidents",
             "organizations:integrations-issue-basic",
             "organizations:integrations-issue-sync",
             "organizations:invite-members",
-            "organizations:metric-alert-builder-aggregate",
             "organizations:sso-basic",
-            "organizations:sso-rippling",
             "organizations:sso-saml2",
-            "organizations:performance-view",
             "organizations:advanced-search",
-            "organizations:session-replay",
-            "organizations:session-replay-enable-canvas",
-            "organizations:session-replay-enable-canvas-replayer",
             "organizations:issue-platform",
-            "organizations:profiling",
             "organizations:monitors",
             "organizations:dashboards-mep",
             "organizations:mep-rollout-flag",
             "organizations:dashboards-rh-widget",
-            "organizations:metrics-extraction",
-            "organizations:transaction-metrics-extraction",
-            "organizations:trace-view-v1",
             "organizations:dynamic-sampling",
             "projects:custom-inbound-filters",
             "projects:data-forwarding",
@@ -309,31 +313,49 @@ SENTRY_FEATURES.update(
             "projects:rate-limits",
             "projects:servicehooks",
         )
-        # Starfish related flags
+        # Performance/Tracing/Spans related flags
         + (
-            "organizations:deprecate-fid-from-performance-score",
+            "organizations:performance-view",
+            "organizations:visibility-explore-view",
+            "organizations:transaction-metrics-extraction",
             "organizations:indexed-spans-extraction",
             "organizations:insights-entry-points",
             "organizations:insights-initial-modules",
             "organizations:insights-addon-modules",
-            "organizations:mobile-ttid-ttfd-contribution",
-            "organizations:performance-calculate-score-relay",
             "organizations:standalone-span-ingestion",
-            "organizations:starfish-browser-resource-module-image-view",
-            "organizations:starfish-browser-resource-module-ui",
-            "organizations:starfish-browser-webvitals",
-            "organizations:starfish-browser-webvitals-pageoverview-v2",
-            "organizations:starfish-browser-webvitals-replace-fid-with-inp",
-            "organizations:starfish-browser-webvitals-use-backend-scores",
             "organizations:starfish-mobile-appstart",
             "projects:span-metrics-extraction",
             "projects:span-metrics-extraction-addons",
         )
+        # Session Replay related flags
+        + (
+            "organizations:session-replay",
+        )
         # User Feedback related flags
         + (
-            "organizations:user-feedback-ingest",
-            "organizations:user-feedback-replay-clip",
             "organizations:user-feedback-ui",
+        )
+        # Profiling related flags
+        + (
+            "organizations:profiling",
+            "organizations:profiling-view",
+        )
+        # Continuous Profiling related flags
+        + (
+            "organizations:continuous-profiling",
+            "organizations:continuous-profiling-stats",
+        )
+        # Uptime Monitoring related flags
+        + (
+            "organizations:uptime",
+            "organizations:uptime-create-issues",
+        )
+        # Logs related flags
+        + (
+            "organizations:ourlogs-enabled",
+            "organizations:ourlogs-ingestion",
+            "organizations:ourlogs-stats",
+            "organizations:ourlogs-replay-ui",
         )
     }
 )
@@ -361,6 +383,18 @@ CSP_REPORT_ONLY = True
 # optional extra permissions
 # https://django-csp.readthedocs.io/en/latest/configuration.html
 # CSP_SCRIPT_SRC += ["example.com"]
+
+############################
+# Sentry Endpoint Settings #
+############################
+
+# If your Sentry installation has different hostnames for ingestion and web UI,
+# in which your web UI is accessible via private corporate network, yet your
+# ingestion hostname is accessible from the public internet, you can uncomment
+# this following options in order to have the ingestion hostname rendered
+# correctly on the SDK configuration UI.
+#
+# SENTRY_ENDPOINT = "https://sentry.ingest.example.com"
 
 #################
 # CSRF Settings #
@@ -418,3 +452,9 @@ JS_SDK_LOADER_DEFAULT_SDK_URL = "https://browser.sentry-cdn.com/%s/bundle%s.min.
 # }
 # SENTRY_METRICS_SAMPLE_RATE = 1.0   # Adjust this to your needs, default is 1.0
 # SENTRY_METRICS_PREFIX = "sentry."  # Adjust this to your needs, default is "sentry."
+
+#########
+# Tasks #
+#########
+# Disable taskworker and continue using celery.
+SENTRY_OPTIONS["taskworker.enabled"] = False
